@@ -64,44 +64,33 @@
   <script>
     const SECRET_PIN = "NiCaTo2o";
     
-    // Açıq və Pulsuz JSONBin Baza Bağlantısı
-    const API_URL = "https://api.jsonbin.io/v3/b/66fbe025e41b4d34e439bb82";
-    const API_KEY = "$2a$10$7zV4pX5H6s2pX9.OQ1Q1s.aWbE9v2C3D4E5F6G7H8I9J0K";
+    // Açıq və Sürətli Baza Endpoint-i
+    const DB_URL = "https://api.myjson.online/v1/records/4ad71a81-2283-4a1b-a25e-30236a2a6d2f";
 
     let streams = [];
 
     async function fetchStreams() {
       try {
-        const res = await fetch(API_URL + '/latest', {
-          headers: { 'X-Master-Key': API_KEY }
-        });
-        if (!res.ok) throw new Error("Baza xətası");
-        const data = await res.json();
-        streams = data.record.streams || [];
+        const res = await fetch(DB_URL);
+        if (!res.ok) throw new Error("Baza yüklənmədi");
+        const result = await res.json();
+        streams = result.data.streams || [];
       } catch (err) {
-        console.warn("Onlayn baza oxunmadı, yerli yaddaş yoxlanılır:", err);
-        const stored = localStorage.getItem('live_streams');
-        streams = stored ? JSON.parse(stored) : [];
+        console.error("Yüklenmə xətası:", err);
+        streams = [];
       }
       renderStreams();
     }
 
     async function updateDatabase() {
-      // Yerli yaddaşı yenilə
-      localStorage.setItem('live_streams', JSON.stringify(streams));
-      
-      // Onlayn bazanı yenilə
       try {
-        await fetch(API_URL, {
+        await fetch(DB_URL, {
           method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Master-Key': API_KEY
-          },
-          body: JSON.stringify({ streams: streams })
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ data: { streams: streams } })
         });
       } catch (err) {
-        console.error("Onlayn bazaya yazıla bilmədi:", err);
+        alert("Bazaya yazılarkən xəta yarandı!");
       }
     }
 
@@ -188,6 +177,7 @@
       );
     }
 
+    // Başlanğıcda yüklə
     fetchStreams();
   </script>
 </body>
