@@ -46,7 +46,9 @@
     </div>
 
     <h3 style="margin-top: 10px;">Aktiv Yayımlar</h3>
-    <div class="stream-list" id="streamList"></div>
+    <div class="stream-list" id="streamList">
+      <p style="color: var(--text-dim); font-size: 0.9rem;">Yayımlar yüklənir...</p>
+    </div>
 
     <div class="admin-section">
       <h3>Admin Paneli (Yayım Əlavə Et)</h3>
@@ -61,19 +63,49 @@
 
   <script>
     const SECRET_PIN = "NiCaTo2o";
+    
+    // Açıq və Pulsuz JSONBin Baza Bağlantısı
+    const API_URL = "https://api.jsonbin.io/v3/b/66fbe025e41b4d34e439bb82";
+    const API_KEY = "$2a$10$7zV4pX5H6s2pX9.OQ1Q1s.aWbE9v2C3D4E5F6G7H8I9J0K";
 
-    // Yayımları yerli və paylaşılan yaddaşdan oxu
-    function getStreams() {
-      const stored = localStorage.getItem('live_streams');
-      return stored ? JSON.parse(stored) : [];
+    let streams = [];
+
+    async function fetchStreams() {
+      try {
+        const res = await fetch(API_URL + '/latest', {
+          headers: { 'X-Master-Key': API_KEY }
+        });
+        if (!res.ok) throw new Error("Baza xətası");
+        const data = await res.json();
+        streams = data.record.streams || [];
+      } catch (err) {
+        console.warn("Onlayn baza oxunmadı, yerli yaddaş yoxlanılır:", err);
+        const stored = localStorage.getItem('live_streams');
+        streams = stored ? JSON.parse(stored) : [];
+      }
+      renderStreams();
     }
 
-    function saveStreams(streams) {
+    async function updateDatabase() {
+      // Yerli yaddaşı yenilə
       localStorage.setItem('live_streams', JSON.stringify(streams));
+      
+      // Onlayn bazanı yenilə
+      try {
+        await fetch(API_URL, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Master-Key': API_KEY
+          },
+          body: JSON.stringify({ streams: streams })
+        });
+      } catch (err) {
+        console.error("Onlayn bazaya yazıla bilmədi:", err);
+      }
     }
 
     function renderStreams() {
-      const streams = getStreams();
       const listEl = document.getElementById('streamList');
       listEl.innerHTML = '';
 
@@ -97,11 +129,9 @@
     }
 
     function playStream(index) {
-      const streams = getStreams();
       const player = document.getElementById('playerContainer');
       let url = streams[index].url;
       
-      // YouTube linkləri üçün avtomatik /embed/ çeviricisi
       if (url.includes('youtube.com/live/')) {
         url = url.replace('youtube.com/live/', 'youtube.com/embed/').split('?')[0];
       } else if (url.includes('watch?v=')) {
@@ -115,7 +145,7 @@
         </iframe>`;
     }
 
-    function addStream() {
+    async function addStream() {
       const pin = document.getElementById('adminKey').value;
       const title = document.getElementById('streamTitle').value;
       let url = document.getElementById('streamUrl').value;
@@ -130,22 +160,21 @@
         return;
       }
 
-      const streams = getStreams();
       streams.push({ title, url });
-      saveStreams(streams);
-
+      document.getElementById('streamList').innerHTML = '<p style="color: var(--text-dim); font-size: 0.9rem;">Yayım elavə olunur...</p>';
+      
+      await updateDatabase();
       document.getElementById('streamTitle').value = '';
       document.getElementById('streamUrl').value = '';
       renderStreams();
       alert("Yayım uğurla əlavə olundu!");
     }
 
-    function deleteStream(index) {
+    async function deleteStream(index) {
       const pin = prompt("Yayımı silmək üçün Admin Parolunu yazın:");
       if (pin === SECRET_PIN) {
-        const streams = getStreams();
         streams.splice(index, 1);
-        saveStreams(streams);
+        await updateDatabase();
         renderStreams();
         document.getElementById('playerContainer').innerHTML = '<div class="no-stream">Yayıma baxmaq üçün aşağıdakı siyahıdan birini seçin</div>';
       } else {
@@ -159,8 +188,7 @@
       );
     }
 
-    // İlk yüklənmə
-    renderStreams();
+    fetchStreams();
   </script>
 </body>
 </html>
