@@ -64,35 +64,34 @@
   <script>
     const SECRET_PIN = "NiCaTo2o";
     
-    // Hamı üçün açıq qlobal baza linki
-    const BASE_URL = "https://api.jsonstorage.net/v1/json/8a6e8b42-a8fb-4560-8431-893fbd2ca521/a038cf56-2db1-4c12-b258-20d0e657c91e";
+    // Açık CORS destekli uç nokta
+    const API_URL = "https://api.npoint.io/c53f868c2dd6a6e2a2f8";
 
     let streams = [];
 
     async function fetchStreams() {
       try {
-        const res = await fetch(BASE_URL + `?nocache=${Date.now()}`);
-        if (!res.ok) throw new Error("Baza xətası");
+        const res = await fetch(API_URL + '?t=' + new Date().getTime());
+        if (!res.ok) throw new Error("Veri çekilemedi");
         const data = await res.json();
         streams = Array.isArray(data) ? data : (data.streams || []);
       } catch (err) {
-        console.error("Yüklənmə xətası:", err);
-        streams = [];
+        console.error("Yükleme hatası:", err);
+      } finally {
+        renderStreams();
       }
-      renderStreams();
     }
 
     async function updateDatabase() {
       try {
-        const res = await fetch(BASE_URL, {
-          method: 'PUT',
+        const res = await fetch(API_URL, {
+          method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(streams)
         });
-        if (!res.ok) throw new Error("Yenilənmə xətası");
-        return true;
+        return res.ok;
       } catch (err) {
-        alert("Bazaya yazıla bilmədi. İnternet bağlantınızı yoxlayın.");
+        console.error("Güncelleme hatası:", err);
         return false;
       }
     }
@@ -162,7 +161,9 @@
       if (success) {
         document.getElementById('streamTitle').value = '';
         document.getElementById('streamUrl').value = '';
-        alert("Yayım uğurla əlavə olundu və hamı üçün aktiv edildi!");
+        alert("Yayım uğurla əlavə olundu!");
+      } else {
+        alert("Yayını kaydederken bir hata oluştu.");
       }
 
       btn.innerText = "Yayımlara Əlavə Et";
@@ -172,4 +173,23 @@
 
     async function deleteStream(index) {
       const pin = prompt("Yayımı silmək üçün Admin Parolunu yazın:");
-      if (pin === SECRET
+      if (pin === SECRET_PIN) {
+        streams.splice(index, 1);
+        await updateDatabase();
+        fetchStreams();
+        document.getElementById('playerContainer').innerHTML = '<div class="no-stream">Yayıma baxmaq üçün aşağıdakı siyahıdan birini seçin</div>';
+      } else {
+        alert("Səhv parol!");
+      }
+    }
+
+    function sanitizeHTML(str) {
+      return str.replace(/[&<>'"]/g, 
+        tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+      );
+    }
+
+    fetchStreams();
+  </script>
+</body>
+</html>
