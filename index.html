@@ -16,22 +16,15 @@
     body { background-color: var(--bg); color: var(--text); padding: 15px; display: flex; flex-direction: column; align-items: center; }
     header { width: 100%; max-width: 900px; padding: 15px 0; text-align: center; border-bottom: 1px solid #334155; margin-bottom: 20px; }
     header h1 { font-size: 1.5rem; color: var(--accent); }
-    
     .container { width: 100%; max-width: 900px; display: flex; flex-direction: column; gap: 20px; }
-    
-    /* Player Bötgəsi */
     .player-container { width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 12px; overflow: hidden; position: relative; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
     iframe { width: 100%; height: 100%; border: none; }
-    .no-stream { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-dim); font-size: 0.9rem; }
-
-    /* Yayım Siyahısı */
+    .no-stream { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-dim); font-size: 0.9rem; text-align: center; padding: 10px; }
     .stream-list { display: flex; flex-direction: column; gap: 10px; }
     .stream-item { background: var(--card-bg); padding: 12px 16px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: 0.2s; border: 1px solid #334155; }
     .stream-item:hover { border-color: var(--accent); }
     .stream-title { font-weight: 600; font-size: 1rem; }
     .live-badge { background: #ef4444; color: #fff; font-size: 0.75rem; padding: 2px 8px; border-radius: 12px; text-transform: uppercase; font-weight: bold; }
-
-    /* Admin Paneli */
     .admin-section { margin-top: 30px; background: var(--card-bg); padding: 15px; border-radius: 12px; border: 1px solid #334155; }
     .admin-section h3 { margin-bottom: 10px; font-size: 1.1rem; }
     .form-group { display: flex; flex-direction: column; gap: 10px; }
@@ -48,16 +41,15 @@
   </header>
 
   <div class="container">
-    <!-- Pleyer -->
     <div class="player-container" id="playerContainer">
       <div class="no-stream">Yayıma baxmaq üçün aşağıdakı siyahıdan birini seçin</div>
     </div>
 
-    <!-- Yayım Siyahısı -->
     <h3 style="margin-top: 10px;">Aktiv Yayımlar</h3>
-    <div class="stream-list" id="streamList"></div>
+    <div class="stream-list" id="streamList">
+      <p style="color: var(--text-dim); font-size: 0.9rem;">Yayımlar yüklənir...</p>
+    </div>
 
-    <!-- Admin İdarəetmə Paneli -->
     <div class="admin-section">
       <h3>Admin Paneli (Yayım Əlavə Et)</h3>
       <div class="form-group" id="adminForm">
@@ -70,11 +62,45 @@
   </div>
 
   <script>
-    // İlkin parol (Bunu öz istədiyiniz parol ilə dəyişin)
-    const SECRET_PIN = "12345"; 
+    // Sizin təyin etdiyiniz xüsusi Admin Parolu
+    const SECRET_PIN = "NiCaTo2o"; 
+    
+    // Pulsuz Onlayn Baza Yaddaşı
+    const BIN_ID = "66fbe025e41b4d34e439bb82";
+    const API_KEY = "$2a$10$7zV4pX5H6s2pX9.OQ1Q1s.aWbE9v2C3D4E5F6G7H8I9J0K";
+    const API_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
 
-    // Yayımların yaddaşda saxlanması (Local storage ilə)
-    let streams = JSON.parse(localStorage.getItem('streams')) || [];
+    let streams = [];
+
+    // Bazadan yayımları çəkmək
+    async function fetchStreams() {
+      try {
+        const res = await fetch(API_URL + '/latest', {
+          headers: { 'X-Master-Key': API_KEY }
+        });
+        const data = await res.json();
+        streams = data.record.streams || [];
+        renderStreams();
+      } catch (err) {
+        console.error("Yayımlar yüklənmədi:", err);
+      }
+    }
+
+    // Bazanı yeniləmək
+    async function updateDatabase() {
+      try {
+        await fetch(API_URL, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Master-Key': API_KEY
+          },
+          body: JSON.stringify({ streams: streams })
+        });
+      } catch (err) {
+        alert("Baza yenilənərkən xəta baş verdi!");
+      }
+    }
 
     function renderStreams() {
       const listEl = document.getElementById('streamList');
@@ -101,20 +127,26 @@
 
     function playStream(index) {
       const player = document.getElementById('playerContainer');
-      const stream = streams[index];
+      let url = streams[index].url;
       
-      // Təhlükəsizlik: Sandbox atributu ilə zərərli reklam/pop-up-ların qarşısı alınır
+      // YouTube linklərini avtomatik /embed/ keçidinə çevirir (qara ekran xətasının qarşısını alır)
+      if (url.includes('youtube.com/live/')) {
+        url = url.replace('youtube.com/live/', 'youtube.com/embed/').split('?')[0];
+      } else if (url.includes('watch?v=')) {
+        url = url.replace('watch?v=', 'embed/').split('&')[0];
+      }
+
       player.innerHTML = `
-        <iframe src="${sanitizeHTML(stream.url)}" 
+        <iframe src="${sanitizeHTML(url)}" 
                 allowfullscreen 
                 sandbox="allow-scripts allow-same-origin allow-presentation">
         </iframe>`;
     }
 
-    function addStream() {
+    async function addStream() {
       const pin = document.getElementById('adminKey').value;
       const title = document.getElementById('streamTitle').value;
-      const url = document.getElementById('streamUrl').value;
+      let url = document.getElementById('streamUrl').value;
 
       if (pin !== SECRET_PIN) {
         alert("Səhv admin parolu!");
@@ -122,24 +154,25 @@
       }
 
       if (!title || !url) {
-        alert("Zəhmət olmasa bütün xanaları doldurun!");
+        alert("Bütün xanaları doldurun!");
         return;
       }
 
       streams.push({ title, url });
-      localStorage.setItem('streams', JSON.stringify(streams));
+      document.getElementById('streamList').innerHTML = '<p style="color: var(--text-dim); font-size: 0.9rem;">Yayım elavə olunur...</p>';
       
+      await updateDatabase();
       document.getElementById('streamTitle').value = '';
       document.getElementById('streamUrl').value = '';
       renderStreams();
-      alert("Yayım uğurla əlavə olundu!");
+      alert("Yayım uğurla əlavə olundu və bütün istifadəçilər üçün aktiv oldu!");
     }
 
-    function deleteStream(index) {
+    async function deleteStream(index) {
       const pin = prompt("Yayımı silmək üçün Admin Parolunu yazın:");
       if (pin === SECRET_PIN) {
         streams.splice(index, 1);
-        localStorage.setItem('streams', JSON.stringify(streams));
+        await updateDatabase();
         renderStreams();
         document.getElementById('playerContainer').innerHTML = '<div class="no-stream">Yayıma baxmaq üçün aşağıdakı siyahıdan birini seçin</div>';
       } else {
@@ -147,15 +180,14 @@
       }
     }
 
-    // XSS Hücumlarına qarşı mətnləri təmizləmə funksiyası
     function sanitizeHTML(str) {
       return str.replace(/[&<>'"]/g, 
-        tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+        tag => ({ '&': '&amp;', '<': '&lt;'>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
       );
     }
 
-    // Başlanğıcda yayımları yüklə
-    renderStreams();
+    // Başlanğıcda bazadan yüklə
+    fetchStreams();
   </script>
 </body>
 </html>
