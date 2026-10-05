@@ -56,7 +56,7 @@
         <input type="password" id="adminKey" placeholder="Admin Parolunu daxil edin">
         <input type="text" id="streamTitle" placeholder="Yayımın Adı (məs: İdman TV)">
         <input type="text" id="streamUrl" placeholder="Yayım Linki (YouTube / Embed / M3U8 Linki)">
-        <button onclick="addStream()">Yayımlara Əlavə Et</button>
+        <button id="addBtn" onclick="addStream()">Yayımlara Əlavə Et</button>
       </div>
     </div>
   </div>
@@ -64,19 +64,19 @@
   <script>
     const SECRET_PIN = "NiCaTo2o";
     
-    // Açıq və Sürətli Baza Endpoint-i
-    const DB_URL = "https://api.myjson.online/v1/records/4ad71a81-2283-4a1b-a25e-30236a2a6d2f";
+    // Hamı üçün açıq qlobal baza linki
+    const BASE_URL = "https://api.jsonstorage.net/v1/json/8a6e8b42-a8fb-4560-8431-893fbd2ca521/a038cf56-2db1-4c12-b258-20d0e657c91e";
 
     let streams = [];
 
     async function fetchStreams() {
       try {
-        const res = await fetch(DB_URL);
-        if (!res.ok) throw new Error("Baza yüklənmədi");
-        const result = await res.json();
-        streams = result.data.streams || [];
+        const res = await fetch(BASE_URL + `?nocache=${Date.now()}`);
+        if (!res.ok) throw new Error("Baza xətası");
+        const data = await res.json();
+        streams = Array.isArray(data) ? data : (data.streams || []);
       } catch (err) {
-        console.error("Yüklenmə xətası:", err);
+        console.error("Yüklənmə xətası:", err);
         streams = [];
       }
       renderStreams();
@@ -84,13 +84,16 @@
 
     async function updateDatabase() {
       try {
-        await fetch(DB_URL, {
+        const res = await fetch(BASE_URL, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ data: { streams: streams } })
+          body: JSON.stringify(streams)
         });
+        if (!res.ok) throw new Error("Yenilənmə xətası");
+        return true;
       } catch (err) {
-        alert("Bazaya yazılarkən xəta yarandı!");
+        alert("Bazaya yazıla bilmədi. İnternet bağlantınızı yoxlayın.");
+        return false;
       }
     }
 
@@ -98,7 +101,7 @@
       const listEl = document.getElementById('streamList');
       listEl.innerHTML = '';
 
-      if (streams.length === 0) {
+      if (!streams || streams.length === 0) {
         listEl.innerHTML = '<p style="color: var(--text-dim); font-size: 0.9rem;">Hal-hazırda aktiv yayım yoxdur.</p>';
         return;
       }
@@ -149,36 +152,24 @@
         return;
       }
 
+      const btn = document.getElementById('addBtn');
+      btn.innerText = "Əlavə edilir...";
+      btn.disabled = true;
+
       streams.push({ title, url });
-      document.getElementById('streamList').innerHTML = '<p style="color: var(--text-dim); font-size: 0.9rem;">Yayım elavə olunur...</p>';
       
-      await updateDatabase();
-      document.getElementById('streamTitle').value = '';
-      document.getElementById('streamUrl').value = '';
-      renderStreams();
-      alert("Yayım uğurla əlavə olundu!");
+      const success = await updateDatabase();
+      if (success) {
+        document.getElementById('streamTitle').value = '';
+        document.getElementById('streamUrl').value = '';
+        alert("Yayım uğurla əlavə olundu və hamı üçün aktiv edildi!");
+      }
+
+      btn.innerText = "Yayımlara Əlavə Et";
+      btn.disabled = false;
+      fetchStreams();
     }
 
     async function deleteStream(index) {
       const pin = prompt("Yayımı silmək üçün Admin Parolunu yazın:");
-      if (pin === SECRET_PIN) {
-        streams.splice(index, 1);
-        await updateDatabase();
-        renderStreams();
-        document.getElementById('playerContainer').innerHTML = '<div class="no-stream">Yayıma baxmaq üçün aşağıdakı siyahıdan birini seçin</div>';
-      } else {
-        alert("Səhv parol!");
-      }
-    }
-
-    function sanitizeHTML(str) {
-      return str.replace(/[&<>'"]/g, 
-        tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
-      );
-    }
-
-    // Başlanğıcda yüklə
-    fetchStreams();
-  </script>
-</body>
-</html>
+      if (pin === SECRET
