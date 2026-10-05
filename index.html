@@ -63,18 +63,22 @@
 
   <script>
     const SECRET_PIN = "NiCaTo2o";
-    
-    // Açık CORS destekli uç nokta
-    const API_URL = "https://api.npoint.io/c53f868c2dd6a6e2a2f8";
+    const FIREBASE_URL = "https://canli-yayin-2e4e7-default-rtdb.firebaseio.com/streams.json";
 
     let streams = [];
 
     async function fetchStreams() {
       try {
-        const res = await fetch(API_URL + '?t=' + new Date().getTime());
-        if (!res.ok) throw new Error("Veri çekilemedi");
+        const res = await fetch(FIREBASE_URL);
+        if (!res.ok) throw new Error("Firebase bağlantı hatası");
         const data = await res.json();
-        streams = Array.isArray(data) ? data : (data.streams || []);
+        
+        streams = [];
+        if (data) {
+          Object.keys(data).forEach(key => {
+            streams.push({ id: key, ...data[key] });
+          });
+        }
       } catch (err) {
         console.error("Yükleme hatası:", err);
       } finally {
@@ -82,17 +86,59 @@
       }
     }
 
-    async function updateDatabase() {
+    async function addStream() {
+      const pin = document.getElementById('adminKey').value;
+      const title = document.getElementById('streamTitle').value;
+      let url = document.getElementById('streamUrl').value;
+
+      if (pin !== SECRET_PIN) {
+        alert("Səhv admin parolu!");
+        return;
+      }
+
+      if (!title || !url) {
+        alert("Bütün xanaları doldurun!");
+        return;
+      }
+
+      const btn = document.getElementById('addBtn');
+      btn.innerText = "Əlavə edilir...";
+      btn.disabled = true;
+
       try {
-        const res = await fetch(API_URL, {
+        const res = await fetch(FIREBASE_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(streams)
+          body: JSON.stringify({ title, url })
         });
-        return res.ok;
+
+        if (res.ok) {
+          document.getElementById('streamTitle').value = '';
+          document.getElementById('streamUrl').value = '';
+          alert("Yayım uğurla əlavə olundu!");
+        } else {
+          alert("Eklenirken bir hata oluştu.");
+        }
       } catch (err) {
-        console.error("Güncelleme hatası:", err);
-        return false;
+        alert("Bağlantı hatası oluştu.");
+      }
+
+      btn.innerText = "Yayımlara Əlavə Et";
+      btn.disabled = false;
+      fetchStreams();
+    }
+
+    async function deleteStream(index) {
+      const pin = prompt("Yayımı silmək üçün Admin Parolunu yazın:");
+      if (pin === SECRET_PIN) {
+        const streamId = streams[index].id;
+        const deleteUrl = `https://canli-yayin-2e4e7-default-rtdb.firebaseio.com/streams/${streamId}.json`;
+        
+        await fetch(deleteUrl, { method: 'DELETE' });
+        fetchStreams();
+        document.getElementById('playerContainer').innerHTML = '<div class="no-stream">Yayıma baxmaq üçün aşağıdakı siyahıdan birini seçin</div>';
+      } else {
+        alert("Səhv parol!");
       }
     }
 
@@ -136,60 +182,15 @@
         </iframe>`;
     }
 
-    async function addStream() {
-      const pin = document.getElementById('adminKey').value;
-      const title = document.getElementById('streamTitle').value;
-      let url = document.getElementById('streamUrl').value;
-
-      if (pin !== SECRET_PIN) {
-        alert("Səhv admin parolu!");
-        return;
-      }
-
-      if (!title || !url) {
-        alert("Bütün xanaları doldurun!");
-        return;
-      }
-
-      const btn = document.getElementById('addBtn');
-      btn.innerText = "Əlavə edilir...";
-      btn.disabled = true;
-
-      streams.push({ title, url });
-      
-      const success = await updateDatabase();
-      if (success) {
-        document.getElementById('streamTitle').value = '';
-        document.getElementById('streamUrl').value = '';
-        alert("Yayım uğurla əlavə olundu!");
-      } else {
-        alert("Yayını kaydederken bir hata oluştu.");
-      }
-
-      btn.innerText = "Yayımlara Əlavə Et";
-      btn.disabled = false;
-      fetchStreams();
-    }
-
-    async function deleteStream(index) {
-      const pin = prompt("Yayımı silmək üçün Admin Parolunu yazın:");
-      if (pin === SECRET_PIN) {
-        streams.splice(index, 1);
-        await updateDatabase();
-        fetchStreams();
-        document.getElementById('playerContainer').innerHTML = '<div class="no-stream">Yayıma baxmaq üçün aşağıdakı siyahıdan birini seçin</div>';
-      } else {
-        alert("Səhv parol!");
-      }
-    }
-
     function sanitizeHTML(str) {
       return str.replace(/[&<>'"]/g, 
         tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
       );
     }
 
+    // Başlangıçta yükle ve her 4 saniyede bir otomatik senkronize et
     fetchStreams();
+    setInterval(fetchStreams, 4000);
   </script>
 </body>
 </html>
