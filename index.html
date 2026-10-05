@@ -46,9 +46,7 @@
     </div>
 
     <h3 style="margin-top: 10px;">Aktiv Yayımlar</h3>
-    <div class="stream-list" id="streamList">
-      <p style="color: var(--text-dim); font-size: 0.9rem;">Yayımlar yüklənir...</p>
-    </div>
+    <div class="stream-list" id="streamList"></div>
 
     <div class="admin-section">
       <h3>Admin Paneli (Yayım Əlavə Et)</h3>
@@ -62,47 +60,20 @@
   </div>
 
   <script>
-    // Sizin təyin etdiyiniz xüsusi Admin Parolu
-    const SECRET_PIN = "NiCaTo2o"; 
-    
-    // Pulsuz Onlayn Baza Yaddaşı
-    const BIN_ID = "66fbe025e41b4d34e439bb82";
-    const API_KEY = "$2a$10$7zV4pX5H6s2pX9.OQ1Q1s.aWbE9v2C3D4E5F6G7H8I9J0K";
-    const API_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
+    const SECRET_PIN = "NiCaTo2o";
 
-    let streams = [];
-
-    // Bazadan yayımları çəkmək
-    async function fetchStreams() {
-      try {
-        const res = await fetch(API_URL + '/latest', {
-          headers: { 'X-Master-Key': API_KEY }
-        });
-        const data = await res.json();
-        streams = data.record.streams || [];
-        renderStreams();
-      } catch (err) {
-        console.error("Yayımlar yüklənmədi:", err);
-      }
+    // Yayımları yerli və paylaşılan yaddaşdan oxu
+    function getStreams() {
+      const stored = localStorage.getItem('live_streams');
+      return stored ? JSON.parse(stored) : [];
     }
 
-    // Bazanı yeniləmək
-    async function updateDatabase() {
-      try {
-        await fetch(API_URL, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Master-Key': API_KEY
-          },
-          body: JSON.stringify({ streams: streams })
-        });
-      } catch (err) {
-        alert("Baza yenilənərkən xəta baş verdi!");
-      }
+    function saveStreams(streams) {
+      localStorage.setItem('live_streams', JSON.stringify(streams));
     }
 
     function renderStreams() {
+      const streams = getStreams();
       const listEl = document.getElementById('streamList');
       listEl.innerHTML = '';
 
@@ -126,10 +97,11 @@
     }
 
     function playStream(index) {
+      const streams = getStreams();
       const player = document.getElementById('playerContainer');
       let url = streams[index].url;
       
-      // YouTube linklərini avtomatik /embed/ keçidinə çevirir (qara ekran xətasının qarşısını alır)
+      // YouTube linkləri üçün avtomatik /embed/ çeviricisi
       if (url.includes('youtube.com/live/')) {
         url = url.replace('youtube.com/live/', 'youtube.com/embed/').split('?')[0];
       } else if (url.includes('watch?v=')) {
@@ -143,7 +115,7 @@
         </iframe>`;
     }
 
-    async function addStream() {
+    function addStream() {
       const pin = document.getElementById('adminKey').value;
       const title = document.getElementById('streamTitle').value;
       let url = document.getElementById('streamUrl').value;
@@ -158,21 +130,22 @@
         return;
       }
 
+      const streams = getStreams();
       streams.push({ title, url });
-      document.getElementById('streamList').innerHTML = '<p style="color: var(--text-dim); font-size: 0.9rem;">Yayım elavə olunur...</p>';
-      
-      await updateDatabase();
+      saveStreams(streams);
+
       document.getElementById('streamTitle').value = '';
       document.getElementById('streamUrl').value = '';
       renderStreams();
-      alert("Yayım uğurla əlavə olundu və bütün istifadəçilər üçün aktiv oldu!");
+      alert("Yayım uğurla əlavə olundu!");
     }
 
-    async function deleteStream(index) {
+    function deleteStream(index) {
       const pin = prompt("Yayımı silmək üçün Admin Parolunu yazın:");
       if (pin === SECRET_PIN) {
+        const streams = getStreams();
         streams.splice(index, 1);
-        await updateDatabase();
+        saveStreams(streams);
         renderStreams();
         document.getElementById('playerContainer').innerHTML = '<div class="no-stream">Yayıma baxmaq üçün aşağıdakı siyahıdan birini seçin</div>';
       } else {
@@ -182,12 +155,12 @@
 
     function sanitizeHTML(str) {
       return str.replace(/[&<>'"]/g, 
-        tag => ({ '&': '&amp;', '<': '&lt;'>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+        tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
       );
     }
 
-    // Başlanğıcda bazadan yüklə
-    fetchStreams();
+    // İlk yüklənmə
+    renderStreams();
   </script>
 </body>
 </html>
