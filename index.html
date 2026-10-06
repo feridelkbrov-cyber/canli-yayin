@@ -63,13 +63,14 @@
 
   <script>
     const SECRET_PIN = "NiCaTo2o";
-    const FIREBASE_URL = "https://canli-yayin-2e4e7-default-rtdb.firebaseio.com/streams.json";
+    const FIREBASE_BASE = "https://canli-yayin-2e4e7-default-rtdb.firebaseio.com";
+    const FIREBASE_URL = FIREBASE_BASE + "/streams.json";
 
     let streams = [];
 
     async function fetchStreams() {
       try {
-        const res = await fetch(FIREBASE_URL);
+        const res = await fetch(FIREBASE_URL + '?nocache=' + Date.now());
         if (!res.ok) throw new Error("Firebase bağlantı hatası");
         const data = await res.json();
         
@@ -115,12 +116,12 @@
         if (res.ok) {
           document.getElementById('streamTitle').value = '';
           document.getElementById('streamUrl').value = '';
-          alert("Yayım uğurla əlavə olundu!");
+          alert("Yayım uğurla əlavə olundu və Bazaya yazıldı!");
         } else {
-          alert("Eklenirken bir hata oluştu.");
+          alert("Xəta yarandı! Lütfən Firebase Rules bölməsini kontrol edin.");
         }
       } catch (err) {
-        alert("Bağlantı hatası oluştu.");
+        alert("İnternet bağlantı xətası.");
       }
 
       btn.innerText = "Yayımlara Əlavə Et";
@@ -132,7 +133,7 @@
       const pin = prompt("Yayımı silmək üçün Admin Parolunu yazın:");
       if (pin === SECRET_PIN) {
         const streamId = streams[index].id;
-        const deleteUrl = `https://canli-yayin-2e4e7-default-rtdb.firebaseio.com/streams/${streamId}.json`;
+        const deleteUrl = `${FIREBASE_BASE}/streams/${streamId}.json`;
         
         await fetch(deleteUrl, { method: 'DELETE' });
         fetchStreams();
@@ -188,7 +189,6 @@
       );
     }
 
-    // Başlangıçta yükle ve her 4 saniyede bir otomatik senkronize et
     fetchStreams();
     setInterval(fetchStreams, 4000);
   </script>
